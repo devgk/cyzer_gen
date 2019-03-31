@@ -1,13 +1,5 @@
 <?php
 
-// function backup_file($file){
-//   $file = ABSPATH.$file;
-//   $destination = CYZ_GEN.'/backup/'.$file;
-
-//   if (true === copy($file, $destination)) return true;
-//   else return false;
-// }
-
 function enable_maintenance(){
   $file_op = new cyz_file_operator;
 
@@ -30,6 +22,8 @@ function disable_maintenance(){
   $copy = $file_op->copy_file('/cyz-gen/backup/index.php.back', '/index.php');
 
   if(false === $copy['status']) return false;
+
+  $delete = $file_op->delete_file('/cyz-gen/backup/index.php.back');
 
   return true;
 }

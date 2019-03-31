@@ -1,14 +1,24 @@
 <?php
 
-require_once(CYZ_LIB.'/user-management/session.php');
+require_once(CYZ_LIB.'/user-management/usm-base.php');
 
-class cyz_user_session extends cyz_user_session_base{
+/** User Session Management Main Class */
+class cyz_usm extends cyz_usm_base {
+
   /** DB Type */
   private $db_type;
+
   /** DB Table Name */
   private $table_name;
+
   /** DB Salt Field Name */
   private $db_salt = 'su_login_salt';
+
+  /** DB IP Field Name */
+  private $db_ip = 'su_ip';
+
+  /** DB Browser ID Field Name */
+  private $browser_id = 'su_browser_id';
 
 
   /** Main constructor function */
@@ -49,14 +59,30 @@ class cyz_user_session extends cyz_user_session_base{
             'description' => 'Password does not match!'
           );
 
+          // Destroy Old Session
+          if(isset($user_data['session_id'])){
+            session_id($user_data['session_id']);
+            session_start();
+            session_destroy();
+          }
+
           // Create new super user session
-          parent::create_session($username, $password, $remember);
-    
-          // Update DB with session salt
-          $user_db->update_column(
-            $this->table_name, $key,
-            $this->db_salt,
-            parent::get_cookie_salt()
+          $session_id = parent::create_session($username, $password, $remember);
+
+          /**
+           * Update DB with session salt
+           * and browser ID */
+          $user_db->update_row(
+            $this->table_name,
+            $key,
+            array(
+              'su_username'       => $user_data['su_username'],
+              'su_password'       => $user_data['su_password'],
+              'session_id'        => $session_id,
+              $this->db_salt      => parent::get_cookie_salt(),
+              $this->db_ip        => parent::get_user_ip(),
+              $this->browser_id   => parent::get_cookie_salt(),
+            )
           );
     
           // Close DB connection
@@ -82,28 +108,39 @@ class cyz_user_session extends cyz_user_session_base{
   }
 
 
-  /** Verify Session */
+  /** 
+   * Auto Login Main Function
+   * 
+   * Here we verify active session
+   * of the logged in user. Verification may use DB
+   * look up but we only update cookie salt in DB
+   * on auto login function
+   * 
+   * If user session is not valid, we delete
+   * the session and logout the user */
   function verify_session(){
-    $user_id = parent::verify_session();
+    $verification_result = parent::verify_php_session();
 
-    /** User ID not valid
-     *  Destroy session and logout */
-    if(false === $user_id) return false;
-
-    if('IP CHANGED' == $user_id){
-
-      // Get Cookie Data
+    /**
+     * Auto login case 1
+     * 
+     * PHP Session Not Found.
+     * 
+     * User might be trying to access once his/her session
+     * expires due to some reason
+     * 
+     * based on selection - if they checked remember me
+     * option then cookie must be validated and user
+     * must be logged in.
+     *    -> If they have selected unique session
+     *       then browser agent must be validated
+     *       before login
+     */
+    if('SESSION NOT FOUND' == $verification_result['status']){
       $cookie_data = parent::get_cookie();
 
       // If cookie is not set or does not exits return false 
-      if(!isset($cookie_data) || !is_array($cookie_data)) return false;
-
-      /** User ID */
-      $user_id = $cookie_data[0];
-      /** User Password [Double Encrypted] */
-      $password = $cookie_data[1];
-      /** Cookie session salt */
-      $salt = $cookie_data[2];
+      if(!isset($cookie_data) || !is_array($cookie_data)) logout($slug);
 
       // Super User Session Management
       if('json_db' == $this->db_type && 'SU' == $this->table_name) {
@@ -111,41 +148,56 @@ class cyz_user_session extends cyz_user_session_base{
 
         // get all super user data
         $users_data = $user_db->get_rows($this->table_name);
+      }
 
-        foreach($users_data as $key => $user_data){
+      // Verify Cookie
+      $validation = parent::verify_cookie_session($cookie_data, $users_data);
 
-          // Check user ID
-          if($user_id != cyz_base64_encode($user_data['su_username'])) return false;
+      if('VALID' == $validation['status']){
+        // As cookie is valid
+        // We can get user ID from cookie
+        $user_id = cyz_base64_decode($cookie_data[0]);
 
-          // Check password
-          if($password != md5($user_data['su_password'])) return false;
+        // Get password from cookie
+        $password = $cookie_data[1];
 
-          // Check session salt
-          if($salt != $user_data['su_login_salt']) return false;
+        // Get remember flag from cookie
+        if('30DAYS' == $cookie_data[4]) $remember = true;
+        else $remember = false;
 
-          // Set user ID
-          if(!defined('SU_ID')) define('SU_ID', $user_id);
+        // Create new super user session
+        parent::create_session($user_id, $password, $remember);
 
-          // Update User IP
-          parent::update_ip();
+        /**
+         * Update DB with session salt */
+        $user_db->update_column(
+          $this->table_name,
+          $validation['key'],
+          $this->db_salt,
+          parent::get_cookie_salt()
+        );
+  
+        // Close DB connection
+        $user_db = null;
 
-          // Return true
-          return $user_id;
-        }
+        return true;
       }
     }
 
-    else{
-      // Set user ID
-      if(!defined('SU_ID')) define('SU_ID', $user_id);
-
-      // Return User ID
-      return $user_id;
+    /**
+     * Auto login case 2
+     * 
+     * PHP Session is valid */
+    else if('VALID' == $verification_result['status']){
+      return true;
     }
 
-    // return false in case error
+
+    /** Logout in case of error */
     return false;
   }
+
+  
 
   function logout($slug = null){
     // Something went wrong

@@ -4,7 +4,11 @@
 /** Include Apache HTACCESS setup file */
 attach_controller('/session-verify.php', 'gateway', true); 
 
-download_cyz_zip(); ?>
+// $string = file_get_contents("https://raw.githubusercontent.com/devgk/cyzer_gen/master/index.php");
+
+// if(false != $string) read_comment($string, ['Version'])['Version'];
+
+?>
 
 
 <!-- Attach SU Panel Header -->
@@ -24,7 +28,3 @@ download_cyz_zip(); ?>
 
 <!-- Attach SU Panel Footer -->
 <?php attach_view_part('/panel/templates/footer/footer.php', false);
-
-if(isset($_GET['maintenance']) && 'yes' == $_GET['maintenance']){
-  enable_maintenance();
-}

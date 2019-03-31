@@ -14,7 +14,7 @@ require_once(CYZ_LIB.'/validator/character.php');
 
 
 // Create new user session object
-$user_session = new cyz_user_session('SU', true);
+$user_session = new cyz_usm('SU', true);
 
 if($user_session->verify_session()){
   // Redirect to SU Panel Dashboard

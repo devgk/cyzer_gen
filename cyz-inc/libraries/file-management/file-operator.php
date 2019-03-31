@@ -152,4 +152,20 @@ class cyz_file_operator{
       'description' => 'Operation Failed! No write permission!'
     ];
   }
+
+  /** Delete File */
+  public function delete_file($absolute_path){
+
+    $absolute_path = ABSPATH.$absolute_path;
+
+    if(!unlink($absolute_path)) return [
+      'status' => true,
+      'description' => 'File "'.$absolute_path.'" successfully deleted'
+    ];
+
+    else return [
+      'status' => false,
+      'description' => 'Operation Failed!'
+    ];
+  }
 }

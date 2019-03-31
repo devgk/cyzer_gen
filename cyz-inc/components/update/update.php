@@ -28,11 +28,3 @@ function download_cyz_zip(){
   if(false === $curl) return false;
   else return true;
 }
-
-function backup_file($file){
-  $file = ABSPATH.$file;
-  $destination = CYZ_GEN.'/backup/'.$file;
-
-  if (true === copy($file, $destination)) return true;
-  else return false;
-}
